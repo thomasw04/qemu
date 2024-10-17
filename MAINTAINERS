@@ -224,11 +224,6 @@ F: gdb-xml/avr-cpu.xml
 F: target/avr/
 F: tests/functional/test_avr_mega2560.py
 
-CRIS TCG CPUs
-M: Edgar E. Iglesias <edgar.iglesias@gmail.com>
-S: Maintained
-F: disas/cris.c
-
 Hexagon TCG CPUs
 M: Brian Cain <bcain@quicinc.com>
 S: Supported
@@ -1064,6 +1059,8 @@ S: Maintained
 F: hw/arm/stm32f405_soc.c
 F: hw/misc/stm32f4xx_syscfg.c
 F: hw/misc/stm32f4xx_exti.c
+F: hw/misc/stm32_rcc.c
+F: include/hw/misc/stm32_rcc.h
 
 Netduino 2
 M: Alistair Francis <alistair@alistair23.me>
@@ -1138,6 +1135,11 @@ F: include/hw/*/nrf51*.h
 F: include/hw/*/microbit*.h
 F: tests/qtest/microbit-test.c
 F: docs/system/arm/nrf.rst
+
+ARM PL011 Rust device
+M: Manos Pitsidianakis <manos.pitsidianakis@linaro.org>
+S: Maintained
+F: rust/hw/char/pl011/
 
 AVR Machines
 -------------
@@ -2207,19 +2209,11 @@ S: Maintained
 W: https://wiki.qemu.org/Documentation/9p
 F: hw/9pfs/
 X: hw/9pfs/xen-9p*
-X: hw/9pfs/9p-proxy*
 F: fsdev/
-X: fsdev/virtfs-proxy-helper.c
 F: tests/qtest/virtio-9p-test.c
 F: tests/qtest/libqos/virtio-9p*
 T: git https://gitlab.com/gkurz/qemu.git 9p-next
 T: git https://github.com/cschoenebeck/qemu.git 9p.next
-
-virtio-9p-proxy
-F: hw/9pfs/9p-proxy*
-F: fsdev/virtfs-proxy-helper.c
-F: docs/tools/virtfs-proxy-helper.rst
-S: Obsolete
 
 virtio-blk
 M: Stefan Hajnoczi <stefanha@redhat.com>
@@ -3064,11 +3058,13 @@ F: qapi/run-state.json
 Read, Copy, Update (RCU)
 M: Paolo Bonzini <pbonzini@redhat.com>
 S: Maintained
-F: docs/devel/lockcnt.txt
-F: docs/devel/rcu.txt
+F: docs/devel/lockcnt.rst
+F: docs/devel/rcu.rst
 F: include/qemu/rcu*.h
+F: include/qemu/lockcnt.h
 F: tests/unit/rcutorture.c
 F: tests/unit/test-rcu-*.c
+F: util/lockcnt.c
 F: util/rcu.c
 
 Human Monitor (HMP)
@@ -3298,6 +3294,13 @@ S: Maintained
 F: hw/core/register.c
 F: include/hw/register.h
 F: include/hw/registerfields.h
+
+Rust
+M: Manos Pitsidianakis <manos.pitsidianakis@linaro.org>
+S: Maintained
+F: rust/qemu-api
+F: rust/qemu-api-macros
+F: rust/rustfmt.toml
 
 SLIRP
 M: Samuel Thibault <samuel.thibault@ens-lyon.org>
@@ -3889,6 +3892,7 @@ M: Stefan Hajnoczi <stefanha@redhat.com>
 L: qemu-block@nongnu.org
 S: Supported
 F: block/blkverify.c
+F: docs/devel/blkverify.rst
 
 bochs
 M: Stefan Hajnoczi <stefanha@redhat.com>
@@ -3966,6 +3970,7 @@ M: Hanna Reitz <hreitz@redhat.com>
 L: qemu-block@nongnu.org
 S: Supported
 F: block/blkdebug.c
+F: docs/devel/blkdebug.rst
 
 vpc
 M: Kevin Wolf <kwolf@redhat.com>
@@ -4195,6 +4200,15 @@ F: docs/*/conf.py
 F: docs/sphinx/
 F: docs/_templates/
 F: docs/devel/docs.rst
+
+Rust build system integration
+M: Manos Pitsidianakis <manos.pitsidianakis@linaro.org>
+S: Maintained
+F: scripts/rust/
+F: rust/.gitignore
+F: rust/Kconfig
+F: rust/meson.build
+F: rust/wrapper.h
 
 Miscellaneous
 -------------

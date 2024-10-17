@@ -314,28 +314,6 @@ the addition of volatile memory support, it is now necessary to distinguish
 between persistent and volatile memory backends.  As such, memdev is deprecated
 in favor of persistent-memdev.
 
-``-fsdev proxy`` and ``-virtfs proxy`` (since 8.1)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-The 9p ``proxy`` filesystem backend driver has been deprecated and will be
-removed (along with its proxy helper daemon) in a future version of QEMU. Please
-use ``-fsdev local`` or ``-virtfs local`` for using the 9p ``local`` filesystem
-backend, or alternatively consider deploying virtiofsd instead.
-
-The 9p ``proxy`` backend was originally developed as an alternative to the 9p
-``local`` backend. The idea was to enhance security by dispatching actual low
-level filesystem operations from 9p server (QEMU process) over to a separate
-process (the virtfs-proxy-helper binary). However this alternative never gained
-momentum. The proxy backend is much slower than the local backend, hasn't seen
-any development in years, and showed to be less secure, especially due to the
-fact that its helper daemon must be run as root, whereas with the local backend
-QEMU is typically run as unprivileged user and allows to tighten behaviour by
-mapping permissions et al by using its 'mapped' security model option.
-
-Nowadays it would make sense to reimplement the ``proxy`` backend by using
-QEMU's ``vhost`` feature, which would eliminate the high latency costs under
-which the 9p ``proxy`` backend currently suffers. However as of to date nobody
-has indicated plans for such kind of reimplementation unfortunately.
 
 RISC-V CPU properties which start with capital 'Z' (since 8.2)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -399,6 +377,15 @@ Specifying the iSCSI password in plain text on the command line using the
 used instead, to refer to a ``--object secret...`` instance that provides
 a password via a file, or encrypted.
 
+``gluster`` backend (since 9.2)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+According to https://marc.info/?l=fedora-devel-list&m=171934833215726
+the GlusterFS development effectively ended. Unless the development
+gains momentum again, the QEMU project will remove the gluster backend
+in a future release.
+
+
 Character device options
 ''''''''''''''''''''''''
 
@@ -406,6 +393,12 @@ Backend ``memory`` (since 9.0)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 ``memory`` is a deprecated synonym for ``ringbuf``.
+
+``reconnect`` (since 9.2)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The ``reconnect`` option only allows specifiying second granularity timeouts,
+which is not enough for all types of use cases, use ``reconnect-ms`` instead.
 
 CPU device properties
 '''''''''''''''''''''
@@ -480,3 +473,9 @@ usage of providing a file descriptor to a plain file has been
 deprecated in favor of explicitly using the ``file:`` URI with the
 file descriptor being passed as an ``fdset``. Refer to the ``add-fd``
 command documentation for details on the ``fdset`` usage.
+
+``zero-blocks`` capability (since 9.2)
+''''''''''''''''''''''''''''''''''''''
+
+The ``zero-blocks`` capability was part of the block migration which
+doesn't exist anymore since it was removed in QEMU v9.1.
