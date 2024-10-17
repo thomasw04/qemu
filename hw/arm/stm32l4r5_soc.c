@@ -37,7 +37,6 @@
 #include "hw/arm/stm32l4r5_soc.h"
 #include "hw/char/stm32l4x5_usart.h"
 #include "hw/gpio/stm32l4x5_gpio.h"
-#include "hw/watchdog/stm32-iwdg.h"
 #include "hw/qdev-clock.h"
 #include "hw/misc/unimp.h"
 
@@ -45,7 +44,10 @@
 #define SRAM1_BASE_ADDRESS 0x20000000
 #define SRAM1_SIZE (192 * KiB)
 #define SRAM2_BASE_ADDRESS 0x10000000
+#define SRAM2_ALIAS_BASE_ADDRESS 0x20030000
 #define SRAM2_SIZE (64 * KiB)
+#define SRAM3_BASE_ADDRESS 0x20040000
+#define SRAM3_SIZE (384 * KiB)
 
 #define EXTI_ADDR 0x40010400
 #define SYSCFG_ADDR 0x40010000
@@ -92,6 +94,8 @@ static const int exti_irq[NUM_EXTI_IRQ] = {
 #define EXTI_USART1_IRQ 26
 #define EXTI_UART4_IRQ 29
 #define EXTI_LPUART1_IRQ 31
+
+#define NVIC_RNG_IRQ 80
 
 static const int exti_or_gates_out[NUM_EXTI_OR_GATES] = {
     23, 40, 63, 1,
@@ -170,7 +174,7 @@ static void stm32l4r5_soc_initfn(Object *obj)
     object_initialize_child(obj, "lpuart1", &s->lpuart,
                             TYPE_STM32L4X5_LPUART);
 
-    object_initialize_child(obj, "iwdg", &s->iwdg, TYPE_STM32_IWDG);
+    object_initialize_child(obj, "iwdg", &s->iwdg, TYPE_STM32L4R5_IWDG);
 
     object_initialize_child(obj, "rng", &s->rng, TYPE_STM32L4R5_RNG);
 }
@@ -185,7 +189,7 @@ static void stm32l4r5_soc_realize(DeviceState *dev_soc, Error **errp)
     SysBusDevice *busdev;
     uint32_t pin_index;
 
-    if (!memory_region_init_rom(&s->flash, OBJECT(dev_soc), "flash",
+    if (!memory_region_init_ram(&s->flash, OBJECT(dev_soc), "flash",
                                 sc->flash_size, errp)) {
         return;
     }
@@ -206,7 +210,17 @@ static void stm32l4r5_soc_realize(DeviceState *dev_soc, Error **errp)
                                 errp)) {
         return;
     }
+
+    memory_region_init_alias(&s->sram2_alias, OBJECT(dev_soc), "sram2_alias", &s->sram2, 0, SRAM2_SIZE);
+
     memory_region_add_subregion(system_memory, SRAM2_BASE_ADDRESS, &s->sram2);
+    memory_region_add_subregion(system_memory, SRAM2_ALIAS_BASE_ADDRESS, &s->sram2_alias);
+
+    if(!memory_region_init_ram(&s->sram3, OBJECT(dev_soc), "SRAM3", SRAM3_SIZE, errp)) {
+        return;
+    }
+
+    memory_region_add_subregion(system_memory, SRAM3_BASE_ADDRESS, &s->sram3);
 
     object_initialize_child(OBJECT(dev_soc), "armv7m", &s->armv7m, TYPE_ARMV7M);
     armv7m = DEVICE(&s->armv7m);
@@ -380,6 +394,7 @@ static void stm32l4r5_soc_realize(DeviceState *dev_soc, Error **errp)
         return;
     }
     sysbus_mmio_map(busdev, 0, 0x50060800);
+    sysbus_connect_irq(busdev, 0, qdev_get_gpio_in(DEVICE(&s->armv7m), NVIC_RNG_IRQ));
 
     /* APB1 BUS */
     create_unimplemented_device("TIM2",      0x40000000, 0x400);
