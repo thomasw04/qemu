@@ -25,5 +25,5 @@ config ALLWINNER_WDT
     bool
     select PTIMER
 
-config STM32_IWDG
+config STM32L4R5_IWDG
     bool

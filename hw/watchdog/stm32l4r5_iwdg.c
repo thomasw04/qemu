@@ -190,7 +190,7 @@ static const MemoryRegionOps stm32_iwdg_ops = {
     .valid.unaligned = false,
 };
 
-static void stm32_iwdg_reset(STM32IWDGState *s)
+static void stm32_iwdg_reset(Stm32l4r5IwdgState *s)
 {
     s->regs[IWDG_SR] = 0x00000000;
     s->regs[IWDG_RLR] = 0x00000FFF;
@@ -221,7 +221,7 @@ static void stm32_iwdg_realize(DeviceState *dev, Error **errp)
     s->register_locked = true;
     s->timer = NULL;
 
-    memory_region_init_io(&s->iomem, OBJECT(s), &stm32_iwdg_ops, s, TYPE_STM32_IWDG, STM32_IWDG_REGS_NUM * 4);
+    memory_region_init_io(&s->iomem, OBJECT(s), &stm32_iwdg_ops, s, TYPE_STM32L4R5_IWDG, STM32_IWDG_REGS_NUM * 4);
     sysbus_init_mmio(SYS_BUS_DEVICE(dev), &s->iomem);
 
     stm32_iwdg_reset(s);
@@ -238,7 +238,7 @@ static void stm32_iwdg_class_init(ObjectClass *klass, void *data)
 }
 
 static TypeInfo stm32_iwdg_info = {
-    .name          = TYPE_STM32_IWDG,
+    .name          = TYPE_STM32L4R5_IWDG,
     .parent        = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(Stm32l4r5IwdgState),
     .class_init    = stm32_iwdg_class_init,
