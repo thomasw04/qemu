@@ -15,13 +15,19 @@ test_timeouts = {
   'aarch64_sbsaref' : 600,
   'aarch64_virt' : 360,
   'acpi_bits' : 240,
+  'arm_aspeed' : 600,
+  'arm_bpim2u' : 360,
+  'arm_orangepi' : 540,
   'arm_raspi2' : 120,
+  'arm_tuxrun' : 120,
+  'arm_sx1' : 360,
   'mips_malta' : 120,
   'netdev_ethtool' : 180,
   'ppc_40p' : 240,
   'ppc64_hv' : 1000,
   'ppc64_powernv' : 240,
   'ppc64_pseries' : 240,
+  'ppc64_tuxrun' : 240,
   's390x_ccw_virtio' : 240,
 }
 
@@ -50,10 +56,16 @@ tests_alpha_system_thorough = [
 ]
 
 tests_arm_system_thorough = [
+  'arm_aspeed',
+  'arm_bpim2u',
   'arm_canona1100',
+  'arm_collie',
   'arm_integratorcp',
+  'arm_orangepi',
   'arm_raspi2',
+  'arm_sx1',
   'arm_vexpress',
+  'arm_tuxrun',
 ]
 
 tests_arm_linuxuser_thorough = [
@@ -62,6 +74,10 @@ tests_arm_linuxuser_thorough = [
 
 tests_avr_system_thorough = [
   'avr_mega2560',
+]
+
+tests_i386_system_thorough = [
+  'i386_tuxrun',
 ]
 
 tests_loongarch64_system_thorough = [
@@ -84,16 +100,23 @@ tests_microblazeel_system_thorough = [
 
 tests_mips_system_thorough = [
   'mips_malta',
+  'mips_tuxrun',
 ]
 
 tests_mipsel_system_thorough = [
   'mipsel_malta',
+  'mipsel_tuxrun',
+]
+
+tests_mips64_system_thorough = [
+  'mips64_tuxrun',
 ]
 
 tests_mips64el_system_thorough = [
   'mips64el_fuloong2e',
   'mips64el_loongson3v',
   'mips64el_malta',
+  'mips64el_tuxrun',
 ]
 
 tests_or1k_system_thorough = [
@@ -111,6 +134,7 @@ tests_ppc_system_thorough = [
   'ppc_bamboo',
   'ppc_mac',
   'ppc_mpc8544ds',
+  'ppc_tuxrun',
   'ppc_virtex_ml507',
 ]
 
@@ -119,19 +143,34 @@ tests_ppc64_system_thorough = [
   'ppc64_hv',
   'ppc64_powernv',
   'ppc64_pseries',
+  'ppc64_tuxrun',
 ]
 
 tests_rx_system_thorough = [
   'rx_gdbsim',
 ]
 
+tests_riscv32_system_thorough = [
+  'riscv32_tuxrun',
+]
+
+tests_riscv64_system_thorough = [
+  'riscv64_tuxrun',
+]
+
 tests_s390x_system_thorough = [
   's390x_ccw_virtio',
   's390x_topology',
+  's390x_tuxrun',
 ]
 
 tests_sh4_system_thorough = [
   'sh4_r2d',
+  'sh4_tuxrun',
+]
+
+tests_sh4eb_system_thorough = [
+  'sh4eb_r2d',
 ]
 
 tests_sparc_system_thorough = [
@@ -140,6 +179,7 @@ tests_sparc_system_thorough = [
 
 tests_sparc64_system_thorough = [
   'sparc64_sun4u',
+  'sparc64_tuxrun',
 ]
 
 tests_x86_64_system_quick = [
@@ -152,6 +192,7 @@ tests_x86_64_system_quick = [
 
 tests_x86_64_system_thorough = [
   'acpi_bits',
+  'x86_64_tuxrun',
   'linux_initrd',
   'multiprocess',
   'netdev_ethtool',
