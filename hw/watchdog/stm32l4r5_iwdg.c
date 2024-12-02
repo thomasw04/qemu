@@ -64,6 +64,7 @@ static uint64_t stm32_iwdg_read(void *opaque, hwaddr offset, unsigned size)
             qemu_log_mask(LOG_GUEST_ERROR, "%s: PR register value could be outdated. Make sure that the PVU value in SR is reset before reading!\n", __func__);
         }
         ret = s->regs[IWDG_RLR];
+        break;
     case IWDG_SR:
         ret = s->regs[IWDG_SR];
         break;
