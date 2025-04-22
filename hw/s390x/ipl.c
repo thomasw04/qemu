@@ -15,9 +15,9 @@
 #include "qemu/osdep.h"
 #include "qemu/datadir.h"
 #include "qapi/error.h"
-#include "sysemu/reset.h"
-#include "sysemu/runstate.h"
-#include "sysemu/tcg.h"
+#include "system/reset.h"
+#include "system/runstate.h"
+#include "system/tcg.h"
 #include "elf.h"
 #include "hw/loader.h"
 #include "hw/qdev-properties.h"
@@ -49,13 +49,6 @@
 #define BIOS_MAX_SIZE                   0x300000UL
 #define IPL_PSW_MASK                    (PSW_MASK_32 | PSW_MASK_64)
 
-static bool iplb_extended_needed(void *opaque)
-{
-    S390IPLState *ipl = S390_IPL(object_resolve_path(TYPE_S390_IPL, NULL));
-
-    return ipl->iplbext_migration;
-}
-
 /* Place the IPLB chain immediately before the BIOS in memory */
 static uint64_t find_iplb_chain_addr(uint64_t bios_addr, uint16_t count)
 {
@@ -67,7 +60,6 @@ static const VMStateDescription vmstate_iplb_extended = {
     .name = "ipl/iplb_extended",
     .version_id = 0,
     .minimum_version_id = 0,
-    .needed = iplb_extended_needed,
     .fields = (const VMStateField[]) {
         VMSTATE_UINT8_ARRAY(reserved_ext, IplParameterBlock, 4096 - 200),
         VMSTATE_END_OF_LIST()
@@ -170,8 +162,8 @@ static void s390_ipl_realize(DeviceState *dev, Error **errp)
 
         bios_size = load_elf(bios_filename, NULL,
                              bios_translate_addr, &fwbase,
-                             &ipl->bios_start_addr, NULL, NULL, NULL, 1,
-                             EM_S390, 0, 0);
+                             &ipl->bios_start_addr, NULL, NULL, NULL,
+                             ELFDATA2MSB, EM_S390, 0, 0);
         if (bios_size > 0) {
             /* Adjust ELF start address to final location */
             ipl->bios_start_addr += fwbase;
@@ -195,7 +187,7 @@ static void s390_ipl_realize(DeviceState *dev, Error **errp)
     if (ipl->kernel) {
         kernel_size = load_elf(ipl->kernel, NULL, NULL, NULL,
                                &pentry, NULL,
-                               NULL, NULL, 1, EM_S390, 0, 0);
+                               NULL, NULL, ELFDATA2MSB, EM_S390, 0, 0);
         if (kernel_size < 0) {
             kernel_size = load_image_targphys(ipl->kernel, 0, ms->ram_size);
             if (kernel_size < 0) {
@@ -291,15 +283,12 @@ static void s390_ipl_realize(DeviceState *dev, Error **errp)
     qemu_register_reset(resettable_cold_reset_fn, dev);
 }
 
-static Property s390_ipl_properties[] = {
+static const Property s390_ipl_properties[] = {
     DEFINE_PROP_STRING("kernel", S390IPLState, kernel),
     DEFINE_PROP_STRING("initrd", S390IPLState, initrd),
     DEFINE_PROP_STRING("cmdline", S390IPLState, cmdline),
     DEFINE_PROP_STRING("firmware", S390IPLState, firmware),
     DEFINE_PROP_BOOL("enforce_bios", S390IPLState, enforce_bios, false),
-    DEFINE_PROP_BOOL("iplbext_migration", S390IPLState, iplbext_migration,
-                     true),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void s390_ipl_set_boot_menu(S390IPLState *ipl)
@@ -418,21 +407,9 @@ static uint64_t s390_ipl_map_iplb_chain(IplParameterBlock *iplb_chain)
 
 void s390_ipl_fmt_loadparm(uint8_t *loadparm, char *str, Error **errp)
 {
-    int i;
-
     /* Initialize the loadparm with spaces */
     memset(loadparm, ' ', LOADPARM_LEN);
-    for (i = 0; i < LOADPARM_LEN && str[i]; i++) {
-        uint8_t c = qemu_toupper(str[i]); /* mimic HMC */
-
-        if (qemu_isalnum(c) || c == '.' || c == ' ') {
-            loadparm[i] = c;
-        } else {
-            error_setg(errp, "LOADPARM: invalid character '%c' (ASCII 0x%02x)",
-                       c, c);
-            return;
-        }
-    }
+    qdev_prop_sanitize_s390x_loadparm(loadparm, str, errp);
 }
 
 void s390_ipl_convert_loadparm(char *ascii_lp, uint8_t *ebcdic_lp)
@@ -452,6 +429,7 @@ static bool s390_build_iplb(DeviceState *dev_st, IplParameterBlock *iplb)
     SCSIDevice *sd;
     int devtype;
     uint8_t *lp;
+    g_autofree void *scsi_lp = NULL;
 
     /*
      * Currently allow IPL only from CCW devices.
@@ -463,6 +441,10 @@ static bool s390_build_iplb(DeviceState *dev_st, IplParameterBlock *iplb)
         switch (devtype) {
         case CCW_DEVTYPE_SCSI:
             sd = SCSI_DEVICE(dev_st);
+            scsi_lp = object_property_get_str(OBJECT(sd), "loadparm", NULL);
+            if (scsi_lp && strlen(scsi_lp) > 0) {
+                lp = scsi_lp;
+            }
             iplb->len = cpu_to_be32(S390_IPLB_MIN_QEMU_SCSI_LEN);
             iplb->blk0_len =
                 cpu_to_be32(S390_IPLB_MIN_QEMU_SCSI_LEN - S390_IPLB_HEADER_LEN);

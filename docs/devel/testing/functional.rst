@@ -59,14 +59,39 @@ To run a single test file without the meson test runner, you can also
 execute the file directly by specifying two environment variables first,
 the PYTHONPATH that has to include the python folder and the tests/functional
 folder of the source tree, and QEMU_TEST_QEMU_BINARY that has to point
-to the QEMU binary that should be used for the test, for example::
+to the QEMU binary that should be used for the test. The current working
+directory should be your build folder. For example::
 
   $ export PYTHONPATH=../python:../tests/functional
   $ export QEMU_TEST_QEMU_BINARY=$PWD/qemu-system-x86_64
-  $ python3 ../tests/functional/test_file.py
+  $ pyvenv/bin/python3 ../tests/functional/test_file.py
 
-Overview
---------
+The test framework will automatically purge any scratch files created during
+the tests. If needing to debug a failed test, it is possible to keep these
+files around on disk by setting ```QEMU_TEST_KEEP_SCRATCH=1``` as an env
+variable.  Any preserved files will be deleted the next time the test is run
+without this variable set.
+
+Logging
+-------
+
+The framework collects log files for each test in the build directory
+in the following subfolder::
+
+ <builddir>/tests/functional/<arch>/<fileid>.<classid>.<testname>/
+
+There are usually three log files:
+
+* ``base.log`` contains the generic logging information that is written
+  by the calls to the logging functions in the test code (e.g. by calling
+  the ``self.log.info()`` or ``self.log.debug()`` functions).
+* ``console.log`` contains the output of the serial console of the guest.
+* ``default.log`` contains the output of QEMU. This file could be named
+  differently if the test chooses to use a different identifier for
+  the guest VM (e.g. when the test spins up multiple VMs).
+
+Introduction to writing tests
+-----------------------------
 
 The ``tests/functional/qemu_test`` directory provides the ``qemu_test``
 Python module, containing the ``qemu_test.QemuSystemTest`` class.
@@ -166,9 +191,19 @@ QEMU binary selection
 ^^^^^^^^^^^^^^^^^^^^^
 
 The QEMU binary used for the ``self.vm`` QEMUMachine instance will
-primarily depend on the value of the ``qemu_bin`` class attribute.
+primarily depend on the value of the ``qemu_bin`` instance attribute.
 If it is not explicitly set by the test code, its default value will
 be the result the QEMU_TEST_QEMU_BINARY environment variable.
+
+Debugging hung QEMU
+^^^^^^^^^^^^^^^^^^^
+
+When test cases go wrong it may be helpful to debug a stalled QEMU
+process. While the QEMUMachine class owns the primary QMP monitor
+socket, it is possible to request a second QMP monitor be created
+by setting the ``QEMU_TEST_QMP_BACKDOOR`` env variable to refer
+to a UNIX socket name. The ``qmp-shell`` command can then be
+attached to the stalled QEMU to examine its live state.
 
 Attribute reference
 -------------------
@@ -234,7 +269,7 @@ Many functional tests download assets (e.g. Linux kernels, initrds,
 firmware images, etc.) from the internet to be able to run tests with
 them. This imposes additional challenges to the test framework.
 
-First there is the the problem that some people might not have an
+First there is the problem that some people might not have an
 unconstrained internet connection, so such tests should not be run by
 default when running ``make check``. To accomplish this situation,
 the tests that download files should only be added to the "thorough"
@@ -257,7 +292,9 @@ the tests are run. This pre-caching is done with the qemu_test.Asset
 class. To use it in your test, declare an asset in your test class with
 its URL and SHA256 checksum like this::
 
-    ASSET_somename = (
+    from qemu_test import Asset
+
+    ASSET_somename = Asset(
         ('https://www.qemu.org/assets/images/qemu_head_200.png'),
         '34b74cad46ea28a2966c1d04e102510daf1fd73e6582b6b74523940d5da029dd')
 
@@ -333,6 +370,14 @@ the code snippet below:
 
 Tests should not live in this state forever and should either be fixed
 or eventually removed.
+
+QEMU_TEST_ALLOW_SLOW
+^^^^^^^^^^^^^^^^^^^^
+Tests that have a very long runtime and might run into timeout issues
+e.g. if the QEMU binary has been compiled with debugging options enabled.
+To avoid these timeout issues by default and to save some precious CPU
+cycles during normal testing, such tests are disabled by default unless
+the QEMU_TEST_ALLOW_SLOW environment variable has been set.
 
 
 .. _unittest: https://docs.python.org/3/library/unittest.html

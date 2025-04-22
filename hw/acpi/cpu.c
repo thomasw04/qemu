@@ -5,7 +5,7 @@
 #include "qapi/error.h"
 #include "qapi/qapi-events-acpi.h"
 #include "trace.h"
-#include "sysemu/numa.h"
+#include "system/numa.h"
 
 #define ACPI_CPU_SELECTOR_OFFSET_WR 0
 #define ACPI_CPU_FLAGS_OFFSET_RW 4
@@ -50,18 +50,6 @@ void acpi_cpu_ospm_status(CPUHotplugState *cpu_st, ACPIOSTInfoList ***list)
     }
 }
 
-static bool check_cpu_enabled_status(DeviceState *dev)
-{
-    CPUClass *k = dev ? CPU_GET_CLASS(dev) : NULL;
-    CPUState *cpu = CPU(dev);
-
-    if (cpu && (!k->cpu_enabled_status || k->cpu_enabled_status(cpu))) {
-        return true;
-    }
-
-    return false;
-}
-
 static uint64_t cpu_hotplug_rd(void *opaque, hwaddr addr, unsigned size)
 {
     uint64_t val = 0;
@@ -75,11 +63,10 @@ static uint64_t cpu_hotplug_rd(void *opaque, hwaddr addr, unsigned size)
     cdev = &cpu_st->devs[cpu_st->selector];
     switch (addr) {
     case ACPI_CPU_FLAGS_OFFSET_RW: /* pack and return is_* fields */
-        val |= check_cpu_enabled_status(DEVICE(cdev->cpu)) ? 1 : 0;
+        val |= cdev->cpu ? 1 : 0;
         val |= cdev->is_inserting ? 2 : 0;
         val |= cdev->is_removing  ? 4 : 0;
         val |= cdev->fw_remove  ? 16 : 0;
-        val |= cdev->cpu ? 32 : 0;
         trace_cpuhp_acpi_read_flags(cpu_st->selector, val);
         break;
     case ACPI_CPU_CMD_DATA_OFFSET_RW:
@@ -246,21 +233,10 @@ void cpu_hotplug_hw_init(MemoryRegion *as, Object *owner,
     memory_region_add_subregion(as, base_addr, &state->ctrl_reg);
 }
 
-static bool should_remain_acpi_present(DeviceState *dev)
-{
-    CPUClass *k = CPU_GET_CLASS(dev);
-    /*
-     * A system may contain CPUs that are always present on one die, NUMA node,
-     * or socket, yet may be non-present on another simultaneously. Check from
-     * architecture specific code.
-     */
-    return k->cpu_persistent_status && k->cpu_persistent_status(CPU(dev));
-}
-
 static AcpiCpuStatus *get_cpu_status(CPUHotplugState *cpu_st, DeviceState *dev)
 {
-    CPUClass *k = CPU_GET_CLASS(dev);
-    uint64_t cpu_arch_id = k->get_arch_id(CPU(dev));
+    CPUState *cpu = CPU(dev);
+    uint64_t cpu_arch_id = cpu->cc->get_arch_id(cpu);
     int i;
 
     for (i = 0; i < cpu_st->dev_count; i++) {
@@ -313,9 +289,7 @@ void acpi_cpu_unplug_cb(CPUHotplugState *cpu_st,
         return;
     }
 
-    if (!should_remain_acpi_present(dev)) {
-        cdev->cpu = NULL;
-    }
+    cdev->cpu = NULL;
 }
 
 static const VMStateDescription vmstate_cpuhp_sts = {
@@ -353,6 +327,7 @@ const VMStateDescription vmstate_cpu_hotplug = {
 #define CPU_EJECT_METHOD  "CEJ0"
 #define CPU_OST_METHOD    "COST"
 #define CPU_ADDED_LIST    "CNEW"
+#define CPU_EJ_LIST       "CEJL"
 
 #define CPU_ENABLED       "CPEN"
 #define CPU_SELECTOR      "CSEL"
@@ -362,7 +337,6 @@ const VMStateDescription vmstate_cpu_hotplug = {
 #define CPU_REMOVE_EVENT  "CRMV"
 #define CPU_EJECT_EVENT   "CEJ0"
 #define CPU_FW_EJECT_EVENT "CEJF"
-#define CPU_PRESENT       "CPRS"
 
 void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
                     build_madt_cpu_fn build_madt_cpu, hwaddr base_addr,
@@ -423,9 +397,7 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
         aml_append(field, aml_named_field(CPU_EJECT_EVENT, 1));
         /* tell firmware to do device eject, write only */
         aml_append(field, aml_named_field(CPU_FW_EJECT_EVENT, 1));
-        /* 1 if present, read only */
-        aml_append(field, aml_named_field(CPU_PRESENT, 1));
-        aml_append(field, aml_reserved_field(2));
+        aml_append(field, aml_reserved_field(3));
         aml_append(field, aml_named_field(CPU_COMMAND, 8));
         aml_append(cpu_ctrl_dev, field);
 
@@ -455,7 +427,6 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
         Aml *ctrl_lock = aml_name("%s.%s", cphp_res_path, CPU_LOCK);
         Aml *cpu_selector = aml_name("%s.%s", cphp_res_path, CPU_SELECTOR);
         Aml *is_enabled = aml_name("%s.%s", cphp_res_path, CPU_ENABLED);
-        Aml *is_present = aml_name("%s.%s", cphp_res_path, CPU_PRESENT);
         Aml *cpu_cmd = aml_name("%s.%s", cphp_res_path, CPU_COMMAND);
         Aml *cpu_data = aml_name("%s.%s", cphp_res_path, CPU_DATA);
         Aml *ins_evt = aml_name("%s.%s", cphp_res_path, CPU_INSERT_EVENT);
@@ -484,26 +455,13 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
         {
             Aml *idx = aml_arg(0);
             Aml *sta = aml_local(0);
-            Aml *ifctx2;
-            Aml *else_ctx;
 
             aml_append(method, aml_acquire(ctrl_lock, 0xFFFF));
             aml_append(method, aml_store(idx, cpu_selector));
             aml_append(method, aml_store(zero, sta));
-            ifctx = aml_if(aml_equal(is_present, one));
+            ifctx = aml_if(aml_equal(is_enabled, one));
             {
-                ifctx2 = aml_if(aml_equal(is_enabled, one));
-                {
-                    /* cpu is present and enabled */
-                    aml_append(ifctx2, aml_store(aml_int(0xF), sta));
-                }
-                aml_append(ifctx, ifctx2);
-                else_ctx = aml_else();
-                {
-                    /* cpu is present but disabled */
-                    aml_append(else_ctx, aml_store(aml_int(0xD), sta));
-                }
-                aml_append(ifctx, else_ctx);
+                aml_append(ifctx, aml_store(aml_int(0xF), sta));
             }
             aml_append(method, ifctx);
             aml_append(method, aml_release(ctrl_lock));
@@ -531,7 +489,6 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
         method = aml_method(CPU_SCAN_METHOD, 0, AML_SERIALIZED);
         {
             const uint8_t max_cpus_per_pass = 255;
-            Aml *else_ctx;
             Aml *while_ctx, *while_ctx2;
             Aml *has_event = aml_local(0);
             Aml *dev_chk = aml_int(1);
@@ -542,6 +499,8 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
             Aml *uid = aml_local(3);
             Aml *has_job = aml_local(4);
             Aml *new_cpus = aml_name(CPU_ADDED_LIST);
+            Aml *ej_cpus = aml_name(CPU_EJ_LIST);
+            Aml *num_ej_cpus = aml_local(5);
 
             aml_append(method, aml_acquire(ctrl_lock, 0xFFFF));
 
@@ -555,6 +514,8 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
              * use named package as old Windows don't support it in local var
              */
             aml_append(method, aml_name_decl(CPU_ADDED_LIST,
+                                             aml_package(max_cpus_per_pass)));
+            aml_append(method, aml_name_decl(CPU_EJ_LIST,
                                              aml_package(max_cpus_per_pass)));
 
             aml_append(method, aml_store(zero, uid));
@@ -570,6 +531,7 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
 
                 aml_append(while_ctx2, aml_store(one, has_event));
                 aml_append(while_ctx2, aml_store(zero, num_added_cpus));
+                aml_append(while_ctx2, aml_store(zero, num_ej_cpus));
 
                 /*
                  * Scan CPUs, till there are CPUs with events or
@@ -602,8 +564,10 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
                       * if CPU_ADDED_LIST is full, exit inner loop and process
                       * collected CPUs
                       */
-                     ifctx = aml_if(
-                         aml_equal(num_added_cpus, aml_int(max_cpus_per_pass)));
+                     ifctx = aml_if(aml_lor(
+                         aml_equal(num_added_cpus, aml_int(max_cpus_per_pass)),
+                         aml_equal(num_ej_cpus, aml_int(max_cpus_per_pass))
+                         ));
                      {
                          aml_append(ifctx, aml_store(one, has_job));
                          aml_append(ifctx, aml_break());
@@ -620,16 +584,16 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
                          aml_append(ifctx, aml_store(one, has_event));
                      }
                      aml_append(while_ctx, ifctx);
-                     else_ctx = aml_else();
+
                      ifctx = aml_if(aml_equal(rm_evt, one));
                      {
-                         aml_append(ifctx,
-                             aml_call2(CPU_NOTIFY_METHOD, uid, eject_req));
-                         aml_append(ifctx, aml_store(one, rm_evt));
+                         /* cache to be removed CPUs to Notify later */
+                         aml_append(ifctx, aml_store(uid,
+                             aml_index(ej_cpus, num_ej_cpus)));
+                         aml_append(ifctx, aml_increment(num_ej_cpus));
                          aml_append(ifctx, aml_store(one, has_event));
                      }
-                     aml_append(else_ctx, ifctx);
-                     aml_append(while_ctx, else_ctx);
+                     aml_append(while_ctx, ifctx);
                      aml_append(while_ctx, aml_increment(uid));
                 }
                 aml_append(while_ctx2, while_ctx);
@@ -663,6 +627,24 @@ void build_cpus_aml(Aml *table, MachineState *machine, CPUHotplugFeatures opts,
                     aml_append(while_ctx, aml_increment(cpu_idx));
                 }
                 aml_append(while_ctx2, while_ctx);
+
+                /*
+                 * Notify OSPM about to be removed CPUs and clear remove flag
+                 */
+                aml_append(while_ctx2, aml_store(zero, cpu_idx));
+                while_ctx = aml_while(aml_lless(cpu_idx, num_ej_cpus));
+                {
+                    aml_append(while_ctx,
+                        aml_store(aml_derefof(aml_index(ej_cpus, cpu_idx)),
+                                  uid));
+                    aml_append(while_ctx,
+                        aml_call2(CPU_NOTIFY_METHOD, uid, eject_req));
+                    aml_append(while_ctx, aml_store(uid, cpu_selector));
+                    aml_append(while_ctx, aml_store(one, rm_evt));
+                    aml_append(while_ctx, aml_increment(cpu_idx));
+                }
+                aml_append(while_ctx2, while_ctx);
+
                 /*
                  * If another batch is needed, then it will resume scanning
                  * exactly at -- and not after -- the last CPU that's currently

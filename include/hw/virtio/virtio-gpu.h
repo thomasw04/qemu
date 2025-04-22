@@ -19,7 +19,7 @@
 #include "ui/console.h"
 #include "hw/virtio/virtio.h"
 #include "qemu/log.h"
-#include "sysemu/vhost-user-backend.h"
+#include "system/vhost-user-backend.h"
 
 #include "standard-headers/linux/virtio_gpu.h"
 #include "standard-headers/linux/virtio_ids.h"
@@ -98,6 +98,7 @@ enum virtio_gpu_base_conf_flags {
     VIRTIO_GPU_FLAG_CONTEXT_INIT_ENABLED,
     VIRTIO_GPU_FLAG_RUTABAGA_ENABLED,
     VIRTIO_GPU_FLAG_VENUS_ENABLED,
+    VIRTIO_GPU_FLAG_RESOURCE_UUID_ENABLED,
 };
 
 #define virtio_gpu_virgl_enabled(_cfg) \
@@ -114,6 +115,8 @@ enum virtio_gpu_base_conf_flags {
     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_CONTEXT_INIT_ENABLED))
 #define virtio_gpu_rutabaga_enabled(_cfg) \
     (_cfg.flags & (1 << VIRTIO_GPU_FLAG_RUTABAGA_ENABLED))
+#define virtio_gpu_resource_uuid_enabled(_cfg) \
+    (_cfg.flags & (1 << VIRTIO_GPU_FLAG_RESOURCE_UUID_ENABLED))
 #define virtio_gpu_hostmem_enabled(_cfg) \
     (_cfg.hostmem > 0)
 #define virtio_gpu_venus_enabled(_cfg) \
@@ -332,6 +335,21 @@ void virtio_gpu_simple_process_cmd(VirtIOGPU *g, struct virtio_gpu_ctrl_command 
 void virtio_gpu_update_cursor_data(VirtIOGPU *g,
                                    struct virtio_gpu_scanout *s,
                                    uint32_t resource_id);
+
+/**
+ * virtio_gpu_scanout_blob_to_fb() - fill out fb based on scanout data
+ * fb: the frame-buffer descriptor to fill out
+ * ss: the scanout blob data
+ * blob_size: size of scanout blob data
+ *
+ * This will check we have enough space for the frame taking into
+ * account that stride.
+ *
+ * Returns true on success, otherwise logs guest error and returns false
+ */
+bool virtio_gpu_scanout_blob_to_fb(struct virtio_gpu_framebuffer *fb,
+                                   struct virtio_gpu_set_scanout_blob *ss,
+                                   uint64_t blob_size);
 
 /* virtio-gpu-udmabuf.c */
 bool virtio_gpu_have_udmabuf(void);

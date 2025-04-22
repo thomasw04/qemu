@@ -73,21 +73,18 @@ static void ccw_device_set_loadparm(Object *obj, Visitor *v,
     s390_ipl_fmt_loadparm(dev->loadparm, val, errp);
 }
 
-static const PropertyInfo ccw_loadparm = {
-    .name  = "ccw_loadparm",
-    .description = "Up to 8 chars in set of [A-Za-z0-9. ] to pass"
-            " to the guest loader/kernel",
+const PropertyInfo ccw_loadparm = {
+    .type  = "str",
+    .description = "Up to 8 chars in set of [A-Za-z0-9. ] to select"
+            " a guest kernel",
     .get = ccw_device_get_loadparm,
     .set = ccw_device_set_loadparm,
 };
 
-static Property ccw_device_properties[] = {
+static const Property ccw_device_properties[] = {
     DEFINE_PROP_CSS_DEV_ID("devno", CcwDevice, devno),
     DEFINE_PROP_CSS_DEV_ID_RO("dev_id", CcwDevice, dev_id),
     DEFINE_PROP_CSS_DEV_ID_RO("subch_id", CcwDevice, subch_id),
-    DEFINE_PROP("loadparm", CcwDevice, loadparm, ccw_loadparm,
-            typeof(uint8_t[8])),
-    DEFINE_PROP_END_OF_LIST(),
 };
 
 static void ccw_device_reset_hold(Object *obj, ResetType type)

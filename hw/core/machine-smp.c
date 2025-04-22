@@ -290,6 +290,7 @@ bool machine_parse_smp_cache(MachineState *ms,
     const SmpCachePropertiesList *node;
     DECLARE_BITMAP(caches_bitmap, CACHE_LEVEL_AND_TYPE__MAX);
 
+    bitmap_zero(caches_bitmap, CACHE_LEVEL_AND_TYPE__MAX);
     for (node = caches; node; node = node->next) {
         /* Prohibit users from repeating settings. */
         if (test_bit(node->value->cache, caches_bitmap)) {
@@ -316,7 +317,14 @@ bool machine_parse_smp_cache(MachineState *ms,
             !mc->smp_props.cache_supported[props->cache]) {
             error_setg(errp,
                        "%s cache topology not supported by this machine",
-                       CacheLevelAndType_str(node->value->cache));
+                       CacheLevelAndType_str(props->cache));
+            return false;
+        }
+
+        if (props->topology == CPU_TOPOLOGY_LEVEL_THREAD) {
+            error_setg(errp,
+                       "%s level cache not supported by this machine",
+                       CpuTopologyLevel_str(props->topology));
             return false;
         }
 
@@ -324,6 +332,8 @@ bool machine_parse_smp_cache(MachineState *ms,
             return false;
         }
     }
+
+    mc->smp_props.has_caches = true;
     return true;
 }
 

@@ -39,8 +39,8 @@
 #include "qemu/sockets.h"
 #include "qapi/qapi-visit-sockets.h"
 #include "qapi/qapi-visit-block-core.h"
-#include "qapi/qmp/qdict.h"
-#include "qapi/qmp/qstring.h"
+#include "qobject/qdict.h"
+#include "qobject/qstring.h"
 #include "qapi/qobject-input-visitor.h"
 #include "qapi/qobject-output-visitor.h"
 #include "trace.h"
@@ -865,9 +865,6 @@ static int ssh_open(BlockDriverState *bs, QDict *options, int bdrv_flags,
     if (ret < 0) {
         goto err;
     }
-
-    /* Go non-blocking. */
-    ssh_set_blocking(s->session, 0);
 
     if (s->attrs->type == SSH_FILEXFER_TYPE_REGULAR) {
         bs->supported_truncate_flags = BDRV_REQ_ZERO_WRITE;

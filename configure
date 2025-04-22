@@ -13,7 +13,7 @@ export CCACHE_RECACHE=yes
 # make source path absolute
 source_path=$(cd "$(dirname -- "$0")"; pwd)
 
-if test "$PWD" = "$source_path"
+if test "$PWD" -ef "$source_path"
 then
     echo "Using './build' as the directory for build output"
 
@@ -527,25 +527,6 @@ case "$cpu" in
     CPU_CFLAGS="-m64"
     ;;
 esac
-
-# Now we have our CPU_CFLAGS we can check if we are targeting a 32 or
-# 64 bit host.
-
-check_64bit_host() {
-cat > $TMPC <<EOF
-#if __SIZEOF_POINTER__ != 8
-#error not 64 bit system
-#endif
-int main(void) { return 0; }
-EOF
-  compile_object "$1"
-}
-
-if check_64bit_host "$CPU_CFLAGS"; then
-    host_bits=64
-else
-    host_bits=32
-fi
 
 if test -n "$host_arch" && {
     ! test -d "$source_path/linux-user/include/host/$host_arch" ||
@@ -1072,7 +1053,7 @@ if test "$static" = "yes" ; then
   fi
   plugins="no"
 fi
-if test "$plugins" != "no" && test $host_bits -eq 64; then
+if test "$plugins" != "no"; then
     if has_meson_option "-Dtcg_interpreter=true"; then
         plugins="no"
     else

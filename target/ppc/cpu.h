@@ -1253,13 +1253,14 @@ struct CPUArchState {
     /* For SMT processors */
     bool has_smt_siblings;
     int core_index;
+    int chip_index;
 
 #if !defined(CONFIG_USER_ONLY)
     /* MMU context, only relevant for full system emulation */
 #if defined(TARGET_PPC64)
     ppc_slb_t slb[MAX_SLB_ENTRIES]; /* PowerPC 64 SLB area */
     struct CPUBreakpoint *ciabr_breakpoint;
-    struct CPUWatchpoint *dawr0_watchpoint;
+    struct CPUWatchpoint *dawr_watchpoint[2];
 #endif
     target_ulong sr[32];   /* segment registers */
     uint32_t nb_BATs;      /* number of BATs */
@@ -1355,6 +1356,18 @@ struct CPUArchState {
      * special way (such as routing some resume causes to 0x100, i.e. sreset).
      */
     bool resume_as_sreset;
+
+    /*
+     * On powernv, quiesced means the CPU has been stopped using PC direct
+     * control xscom registers.
+     *
+     * On spapr, quiesced means it is in the "RTAS stopped" state.
+     *
+     * The core halted/stopped variables aren't sufficient for this, because
+     * they can be changed with various side-band operations like qmp cont,
+     * powersave interrupts, etc.
+     */
+    bool quiesced;
 #endif
 
     /* These resources are used only in TCG */
@@ -1411,8 +1424,10 @@ struct CPUArchState {
 
 #define THREAD_SIBLING_FOREACH(cs, cs_sibling)                  \
     CPU_FOREACH(cs_sibling)                                     \
-        if (POWERPC_CPU(cs)->env.core_index ==                  \
-            POWERPC_CPU(cs_sibling)->env.core_index)
+        if ((POWERPC_CPU(cs)->env.chip_index ==                 \
+             POWERPC_CPU(cs_sibling)->env.chip_index) &&        \
+            (POWERPC_CPU(cs)->env.core_index ==                 \
+             POWERPC_CPU(cs_sibling)->env.core_index))
 
 #define SET_FIT_PERIOD(a_, b_, c_, d_)          \
 do {                                            \
@@ -1577,15 +1592,19 @@ extern const VMStateDescription vmstate_ppc_cpu;
 
 /*****************************************************************************/
 void ppc_translate_init(void);
+void ppc_translate_code(CPUState *cs, TranslationBlock *tb,
+                        int *max_insns, vaddr pc, void *host_pc);
 
 #if !defined(CONFIG_USER_ONLY)
 void ppc_store_sdr1(CPUPPCState *env, target_ulong value);
 void ppc_store_lpcr(PowerPCCPU *cpu, target_ulong val);
 void ppc_update_ciabr(CPUPPCState *env);
 void ppc_store_ciabr(CPUPPCState *env, target_ulong value);
-void ppc_update_daw0(CPUPPCState *env);
+void ppc_update_daw(CPUPPCState *env, int rid);
 void ppc_store_dawr0(CPUPPCState *env, target_ulong value);
 void ppc_store_dawrx0(CPUPPCState *env, uint32_t value);
+void ppc_store_dawr1(CPUPPCState *env, target_ulong value);
+void ppc_store_dawrx1(CPUPPCState *env, uint32_t value);
 #endif /* !defined(CONFIG_USER_ONLY) */
 void ppc_store_msr(CPUPPCState *env, target_ulong value);
 
@@ -2085,6 +2104,7 @@ void ppc_compat_add_property(Object *obj, const char *name,
 #define SPR_VTB               (0x351)
 #define SPR_LDBAR             (0x352)
 #define SPR_MMCRC             (0x353)
+#define SPR_PMSR              (0x355)
 #define SPR_PSSCR             (0x357)
 #define SPR_440_INV0          (0x370)
 #define SPR_440_INV1          (0x371)
@@ -2092,8 +2112,10 @@ void ppc_compat_add_property(Object *obj, const char *name,
 #define SPR_440_INV2          (0x372)
 #define SPR_TRIG2             (0x372)
 #define SPR_440_INV3          (0x373)
+#define SPR_PMCR              (0x374)
 #define SPR_440_ITV0          (0x374)
 #define SPR_440_ITV1          (0x375)
+#define SPR_RWMR              (0x375)
 #define SPR_440_ITV2          (0x376)
 #define SPR_440_ITV3          (0x377)
 #define SPR_440_CCR1          (0x378)
@@ -2746,11 +2768,6 @@ static inline void cpu_get_tb_cpu_state(CPUPPCState *env, vaddr *pc,
 }
 #endif
 
-G_NORETURN void raise_exception(CPUPPCState *env, uint32_t exception);
-G_NORETURN void raise_exception_ra(CPUPPCState *env, uint32_t exception,
-                                   uintptr_t raddr);
-G_NORETURN void raise_exception_err(CPUPPCState *env, uint32_t exception,
-                                    uint32_t error_code);
 G_NORETURN void raise_exception_err_ra(CPUPPCState *env, uint32_t exception,
                                        uint32_t error_code, uintptr_t raddr);
 
