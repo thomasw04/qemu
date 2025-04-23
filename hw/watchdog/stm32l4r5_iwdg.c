@@ -6,7 +6,7 @@
 #include "qemu/module.h"
 #include "qemu/timer.h"
 #include "hw/watchdog/stm32l4r5_iwdg.h"
-#include "sysemu/watchdog.h"
+#include "system/watchdog.h"
 #include "hw/qdev-properties.h"
 
 #define PCLK_HZ 32000
